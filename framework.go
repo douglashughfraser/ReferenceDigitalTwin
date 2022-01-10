@@ -2,66 +2,106 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
-	"reflect"
-	"sync"
-	"time"
+	"strconv"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-const numSensors = 10
+const numSensors = 1
+const numModels = 1
+const numActuators = 1
 
-func initSensors(wg *sync.WaitGroup, chans []chan float64) {
-	for i := 0; i < numSensors; i++ {
-		wg.Add(1) // add sensor to wait group
-		chans[i] = make(chan float64)
+type Message struct {
+	id   string
+	data float64
+	str  string
+}
 
-		go func(ch chan float64, interval int) {
-			defer wg.Done()
-			for i := 0.00; i < 100.00; i++ {
-				ch <- rand.Float64() * 100 // add probabilitic distribution?
-				time.Sleep(time.Duration(interval+rand.Intn(500)-250) * time.Millisecond)
-			}
-		}(chans[i], 500) // Randomize update interval
+type ComponentBehaviour = func(profile *ComponentProfile)
+
+// Struct containing all the data about a component.
+// Used but ComponentBehaviour function and to communicate with the component.
+type ComponentProfile struct {
+	id                string
+	componentType     string
+	input             chan Message
+	mqttClient        mqtt.Client
+	mqttSubscriptions []string
+}
+
+var nextFreeIdDoNotUseDirect int = 0
+
+func generateUniqueId() int {
+	var newId = nextFreeIdDoNotUseDirect
+	nextFreeIdDoNotUseDirect += 1
+	return newId
+}
+
+/*
+Constructs a ComponentProfile for components:
+* Generates a unique id
+* Creates a new MQTTClient for the component and subscribes the client to a slice of *subscriptions* topics.
+* Implicitly subscribes the component to it's own unique topic -- Format: "iot/components/<id>"
+	- This should be used to communicate with the component. */
+func newComponentProfile(componentType string, subscriptions []string) *ComponentProfile {
+
+	//Generate id for component
+	strid := strconv.Itoa(generateUniqueId())
+
+	//Add subscription to unique topic
+	if subscriptions == nil {
+		subscriptions = []string{"iot/components/" + strid}
+	} else {
+		subscriptions = append(subscriptions, "iot/components/"+strid)
 	}
+
+	MQTTClient := mqtt.NewClient(GetMQTTClientOptions(strid))
+
+	// Connect component to mqttbroker
+	connection := MQTTClient.Connect()
+	if connection.Wait() && connection.Error() != nil {
+		panic(connection.Error())
+	}
+
+	for _, topic := range subscriptions {
+		subscription := MQTTClient.Subscribe(topic, 1, nil)
+		if subscription.Wait() && subscription.Error() != nil {
+			panic(subscription.Error())
+		} else {
+			fmt.Println("Subscribed to %v", topic)
+		}
+	}
+
+	profile := ComponentProfile{
+		id:            strid,
+		componentType: componentType,
+		mqttClient:    MQTTClient,
+	}
+
+	return &profile
 }
 
 func main() {
 
-	var wg sync.WaitGroup // used to synchronize sensors to start only once receiver created.
-	wg.Add(1)             // Add listener to wait group first before creating sensors
+	// Slice storing profiles of every component
+	var components []ComponentProfile = make([]ComponentProfile, 0)
 
-	// create channels for data exchange
-	// currently only being made for sensors
-	chans := make([]chan float64, numSensors)
+	// Create component profiles and connect to MQTT broker
+	components = append(components, *newComponentProfile("normDistSensor", nil))
+	components = append(components, *newComponentProfile("monitor", []string{"iot/type/Sensors"}))
 
-	initSensors(&wg, chans) // create sensors for each channel, adding each sensor to the waitgroup (passed using pointer ref)
+	// Iterate through component profiles, in order, loading the behaviour for that component
+	// and running it as a goroutine.
 
-	// initialize a receiver for all channels
-	cases := make([]reflect.SelectCase, len(chans)) // make an array of SelectCases (templates for receiving/sending)
-	for i, ch := range chans {                      // for each channel
-		cases[i] = reflect.SelectCase{ // make a recieve case for the type of that channel
-			Dir:  reflect.SelectRecv,
-			Chan: reflect.ValueOf(ch)}
+	fmt.Println(len(components))
+	for i, component := range components {
+		doTheThings := getBehaviour(component.componentType)
+		fmt.Println(i)
+		go doTheThings(&component)
 	}
 
-	for i := 0; i < len(chans); i++ {
-		fmt.Print(len(chans[i]))
-	}
-
-	// listen on all channels
-	go func([]chan float64) {
-		//var data [][]float64 // variable array to collect data in
-		wg.Done()
-		for {
-			ch, v, _ := reflect.Select(cases)
-			// ok will be true if the channel has not been closed.
-			fmt.Printf("Sensor %v: %v \n", ch, v)
-			//add new data from channel to array, bit of conversion needed to handle reflection
-			//data[ch] = append(data[ch], v.Interface().(float64))
-
-			// actuators
-		}
-	}(chans)
+	fmt.Printf("Initialized\n")
 
 	fmt.Scanln()
+
 }
