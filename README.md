@@ -2,7 +2,7 @@
 A networking framework for connecting nodes running digital twins. Each node has an MQTT client for IoT messaging and a MongoDB database.
 
 Requirements: 
-- Exclpse Mosquitto v5, installed and accessible on path.
+- Eclipse Mosquitto v5, installed and accessible on path.
 - MongoDB v5, installed and accessible on path.
 
 Run with:
