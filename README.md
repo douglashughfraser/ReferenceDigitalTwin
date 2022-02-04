@@ -10,8 +10,8 @@ $ go build -o /bin/dt.exe
 $ ./bin/dt.exe
 
 Todo:
-	* Unsure how sendMessage is (intermittently?) connecting to MQTTClient
-	* Is receiveMessage connecting to SubMessages?
+* Unsure how sendMessage is (intermittently?) connecting to MQTTClient
+* Is receiveMessage connecting to SubMessages?
 * Remove the channels, split timed and event driven behaviour
 	* Timed behaviour can request data from DB if needed
 	* Event driven can be triggered by MQTT messages, just need to be smarter about where receiver funcs go.
