@@ -7,6 +7,7 @@ Requirements:
 
 Run with:
 $ go build -o /bin/dt.exe
+
 $ ./bin/dt.exe
 
 Todo:
