@@ -6,6 +6,7 @@ Requirements:
 - MongoDB v5, installed and accessible on path.
 
 Run with:
+
 $ go build -o /bin/dt.exe
 
 $ ./bin/dt.exe
