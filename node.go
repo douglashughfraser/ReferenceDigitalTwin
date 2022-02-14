@@ -9,13 +9,41 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
+type Message struct {
+	Id   string  `json:"id,omitempty"`
+	Data float64 `json:"data,omitempty"`
+	Str  string  `json:"str,omitempty"`
+}
+
+type Component interface {
+	run()
+}
+
+type PhysicalAsset struct {
+	id                string
+	mqttClient        mqtt.Client
+	mqttSubscriptions []string
+	subMessages       map[string]chan Message
+	SendMessage       func(topic string, qos byte, retained bool, msg Message)
+	ReceiveMessage    func(topic string, msg Message)
+}
+
+type DigitalTwin struct {
+	id                string
+	mqttClient        mqtt.Client
+	mqttSubscriptions []string
+	subMessages       map[string]chan Message
+	SendMessage       func(topic string, qos byte, retained bool, msg Message)
+	ReceiveMessage    func(topic string, msg Message)
+}
+
 /*
 Constructs a ComponentProfile for components:
 * Generates a unique id
 * Creates a new MQTTClient for the component and subscribes the client to a slice of *subscriptions* topics.
 * Implicitly subscribes the component to it's own unique topic -- Format: "dt/components/<id>"
 	- This should be used to communicate with the component. */
-func newComponentProfile(strid string, componentType string, subscriptions []string) *ComponentProfile {
+func newComponentProfile(strid string, componentType string, subscriptions []string) *Component {
 
 	//Generate id for component
 	//strid := strconv.Itoa(generateUniqueId())
@@ -97,14 +125,26 @@ func newComponentProfile(strid string, componentType string, subscriptions []str
 	// Add entry to global mapping of clients to receivers
 	ClientReceivers[MQTTClient] = receiveMessage
 
+	var profile Component
+
 	// Bring it all together to create and return profile
-	profile := ComponentProfile{
-		id:             strid,
-		componentType:  componentType,
-		mqttClient:     MQTTClient,
-		subMessages:    SubMessages,
-		SendMessage:    sendMessage,
-		ReceiveMessage: receiveMessage,
+	if componentType == "PhysicalAsset" {
+		profile = &PhysicalAsset{
+			id:             strid,
+			mqttClient:     MQTTClient,
+			subMessages:    SubMessages,
+			SendMessage:    sendMessage,
+			ReceiveMessage: receiveMessage,
+		}
+	} else if componentType == "DigitalTwin" {
+		profile = &DigitalTwin{
+			id:             strid,
+			mqttClient:     MQTTClient,
+			subMessages:    SubMessages,
+			SendMessage:    sendMessage,
+			ReceiveMessage: receiveMessage,
+		}
 	}
+
 	return &profile
 }
