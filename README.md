@@ -11,6 +11,8 @@ $ go build -o /bin/dt.exe
 
 $ ./bin/dt.exe
 
+Ensure that a "data/db" directory exists within the repository home, this is where mongo stores its data.
+
 Todo:
 * Unsure how sendMessage is (intermittently?) connecting to MQTTClient
 * Is receiveMessage connecting to SubMessages?

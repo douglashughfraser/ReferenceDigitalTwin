@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"time"
 
 	//"strconv"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Message struct {
@@ -15,26 +20,11 @@ type Message struct {
 	Str  string  `json:"str,omitempty"`
 }
 
-type Component interface {
-	run()
-}
-
-type PhysicalAsset struct {
-	id                string
-	mqttClient        mqtt.Client
-	mqttSubscriptions []string
-	subMessages       map[string]chan Message
-	SendMessage       func(topic string, qos byte, retained bool, msg Message)
-	ReceiveMessage    func(topic string, msg Message)
-}
-
-type DigitalTwin struct {
-	id                string
-	mqttClient        mqtt.Client
-	mqttSubscriptions []string
-	subMessages       map[string]chan Message
-	SendMessage       func(topic string, qos byte, retained bool, msg Message)
-	ReceiveMessage    func(topic string, msg Message)
+type Component struct {
+	behaviour  string
+	id         string
+	mqttClient mqtt.Client
+	db         mongo.Database
 }
 
 /*
@@ -80,11 +70,6 @@ func newComponentProfile(strid string, componentType string, subscriptions []str
 				panic(err)
 			}
 
-			fmt.Printf("\tSub Callback received: Topic: %v, Message: %v\n", msg.Topic(), decodedMessage.Str)
-			fmt.Printf("\tSubMessages length: %v\n", len(SubMessages[msg.Topic()]))
-
-			// Use global client->receive() mapping to forward message to component
-			ClientReceivers[client](msg.Topic(), decodedMessage)
 		}
 
 		subscription := MQTTClient.Subscribe(topic, 1, callback)
@@ -94,57 +79,49 @@ func newComponentProfile(strid string, componentType string, subscriptions []str
 		}
 	}
 
-	sendMessage := func(topic string, qos byte, retained bool, msg Message) {
-		// Encode message to JSON
-		jsonMessage, err := json.Marshal(msg)
-		if err != nil {
-			panic(err)
-		}
-
-		// Publish message to server
-		token := MQTTClient.Publish(topic, qos, retained, jsonMessage)
-
-		// Verify sent
-		if token.Wait() && token.Error() != nil {
-			panic(token.Error())
-		}
+	profile := Component{
+		behaviour:  componentType,
+		id:         strid,
+		mqttClient: MQTTClient,
 	}
 
-	receiveMessage := func(topic string, msg Message) {
-		fmt.Printf("\tReceived %v message: %v\n", topic, msg.Data)
-		// What to do when a message from this topic is recieved
-		msgs := SubMessages[topic]
-		// If channel at capacity, remove oldest message
-		if len(msgs) == cap(msgs) {
-			<-msgs
-		}
-		//Add new message
-		msgs <- msg
-	}
-
-	// Add entry to global mapping of clients to receivers
-	ClientReceivers[MQTTClient] = receiveMessage
-
-	var profile Component
-
-	// Bring it all together to create and return profile
-	if componentType == "PhysicalAsset" {
-		profile = &PhysicalAsset{
-			id:             strid,
-			mqttClient:     MQTTClient,
-			subMessages:    SubMessages,
-			SendMessage:    sendMessage,
-			ReceiveMessage: receiveMessage,
-		}
-	} else if componentType == "DigitalTwin" {
-		profile = &DigitalTwin{
-			id:             strid,
-			mqttClient:     MQTTClient,
-			subMessages:    SubMessages,
-			SendMessage:    sendMessage,
-			ReceiveMessage: receiveMessage,
-		}
-	}
+	// Connect to core database and add client to profile.
+	profile.ConnectDB()
 
 	return &profile
+}
+
+func (c *Component) PublishMQTT(topic string, qos byte, retained bool, msg Message) {
+	// Encode message to JSON
+	jsonMessage, err := json.Marshal(msg)
+	if err != nil {
+		panic(err)
+	}
+
+	// Publish message to server
+	token := c.mqttClient.Publish(topic, qos, retained, jsonMessage)
+
+	// Verify sent
+	if token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+}
+
+func (c *Component) ConnectDB() {
+
+	// Username and password can be added here
+	uri := fmt.Sprintf("mongodb://localhost/27017")
+
+	// Connect to MongoDB instance
+	client, err := mongo.NewClient(options.Client().ApplyURI(uri))
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err = client.Connect(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	c.db = *client.Database(c.id)
 }

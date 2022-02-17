@@ -22,7 +22,7 @@ func GetMQTTClientOptions(clientId string) *mqtt.ClientOptions {
 	options.OnConnectionLost = func(client mqtt.Client, err error) {
 		options := client.OptionsReader()
 		id := options.ClientID()
-		fmt.Printf("ConnectionLost handler called for Client: %v, error: %v\n", id, err.Error())
+		fmt.Printf("ConnectionLost han dler called for Client: %v, error: %v\n", id, err.Error())
 	}
 
 	return options
