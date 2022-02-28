@@ -14,12 +14,11 @@ func main() {
 	// Create component profiles and connect to MQTT brok
 	components = append(components, *newComponentProfile("PhysicalAsset", "NormDistAsset", nil))
 	components = append(components, *newComponentProfile("DigitalTwin", "DigitalTwin", []string{"Sensors"}))
-	listener([]string{"Sensors"})
 
 	// Iterate through component profiles, in order, calling the appropriate behaviour for that component
 	// and running it as a goroutine.
 	for i, _ := range components {
-		components[i].BehaviourDispatch()
+		components[i].Run()
 	}
 
 	fmt.Printf("\n-------------------- SET UP COMPLETE --------------------\n\n")
