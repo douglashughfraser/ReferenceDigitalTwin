@@ -8,6 +8,8 @@ func main() {
 
 	initCore()
 
+	fmt.Scanln()
+
 	// Slice storing profiles of every component
 	var components []Component = make([]Component, 0)
 

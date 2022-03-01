@@ -3,17 +3,30 @@ package main
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"time"
-
 	kafka "github.com/segmentio/kafka-go"
+	"net"
 )
 
-func (c *Component) KafkaMakeWriter(topic string){
-	// intialize the writer with the broker addresses, and the topic
-	w := &kafka.Writer{
-		Brokers: []string{"localhost:9092"},
-		Topic:   topic,
+// Initialize kafka writers for each topic and store them in a map within the component profile
+func (c *Component) KafkaMakeWriters(topics []string) {
+	KafkaWriters := make(map[string]*kafka.Writer)
+	for _, topic := range topics {
+		KafkaWriters[topic] = KafkaMakeWriter(topic)
+	}
+
+	c.KafkaWriters = KafkaWriters
+}
+
+// Intialize a kafka writer for a given topic using the default broker address
+func KafkaMakeWriter(topic string) *kafka.Writer {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:9092")
+	if err != nil {
+		panic(err)
+	}
+
+	return &kafka.Writer{
+		Addr:  addr,
+		Topic: topic,
 		Async: true,
 		Completion: func(messages []kafka.Message, err error) {
 			if err != nil {
@@ -22,17 +35,16 @@ func (c *Component) KafkaMakeWriter(topic string){
 				}
 			}
 		},
-
-	})
+	}
 }
 
 func (c *Component) KafkaPublish(topic string, ctx context.Context) {
-
+	/**
 	for {
 		// each kafka message has a key and value. The key is used
 		// to decide which partition (and consequently, which broker)
 		// the message gets published on
-		err := w.WriteMessages(ctx, kafka.Message{
+		err := c.KafkaWriters[topic].WriteMessages(ctx, kafka.Message{
 			Key: []byte(strconv.Itoa(i)),
 			// create an arbitrary message payload for the value
 			Value: []byte("this is message" + strconv.Itoa(i)),
@@ -46,7 +58,7 @@ func (c *Component) KafkaPublish(topic string, ctx context.Context) {
 		i++
 		// sleep for a second
 		time.Sleep(time.Second)
-	}
+	}**/
 }
 
 func consume(topic string, ctx context.Context) {
@@ -69,7 +81,7 @@ func consume(topic string, ctx context.Context) {
 	}
 }
 
-func makeKafkaReader() kafka.Reader {
+func makeKafkaReader(topic string) *kafka.Reader {
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"}, // default broker address
 		Topic:   topic,

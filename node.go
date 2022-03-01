@@ -6,7 +6,8 @@ import (
 	//"strconv"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"go.mongodb.org/mongo-driver/mongo"
+	kafka "github.com/segmentio/kafka-go"
+	mongo "go.mongodb.org/mongo-driver/mongo"
 )
 
 type Message struct {
@@ -16,10 +17,11 @@ type Message struct {
 }
 
 type Component struct {
-	behaviour string
-	id        string
-	mqtt      mqtt.Client
-	mongo     mongo.Database
+	behaviour    string
+	id           string
+	mqtt         mqtt.Client
+	mongo        mongo.Database
+	KafkaWriters map[string]*kafka.Writer
 }
 
 /*
